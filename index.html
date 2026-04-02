@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5x5 LightsOut</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #dbe8ec;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+        }
+        h1 { color: #333; }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        button {
+            padding: 5px 15px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 50px);
+            grid-template-rows: repeat(5, 50px);
+            border: 2px solid #333;
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #666;
+            box-sizing: border-box;
+            cursor: pointer;
+            background-color: white; /* 0 - вимкнено */
+        }
+        .cell.on {
+            background-color: #999; /* 1 - увімкнено (сірий) */
+        }
+        .stats {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #333;
+            display: flex;
+            gap: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>5x5 LightsOut</h1>
+    
+    <div class="game-container">
+        <div class="controls">
+            <button id="newGameBtn">New Game</button>
+            <div id="boardContainer" class="grid"></div>
+        </div>
+        
+        <div class="stats">
+            <span id="targetText">Target: 0</span>
+            <span id="movesText">Moves: 0</span>
+            <span id="timeText">Time: 0:00</span>
+        </div>
+    </div>
+
+    <script>
+        const boardContainer = document.getElementById('boardContainer');
+        const targetText = document.getElementById('targetText');
+        const movesText = document.getElementById('movesText');
+        const timeText = document.getElementById('timeText');
+        const newGameBtn = document.getElementById('newGameBtn');
+
+        let boardData = [];
+        let moves = 0;
+        let targetMoves = 0;
+        let timerId;
+        let secondsElapsed = 0;
+
+        // Функція для завантаження даних (Ajax підхід за допомогою fetch)
+        async function loadGame() {
+            try {
+                // Завантажуємо JSON з сервера
+                const response = await fetch('board.json');
+                const data = await response.json();
+                
+                // Зберігаємо дані
+                targetMoves = data.target;
+                // Робимо глибоку копію масиву, щоб мати змогу перезапускати гру
+                boardData = JSON.parse(JSON.stringify(data.board)); 
+                
+                resetStats();
+                renderBoard();
+                startTimer();
+            } catch (error) {
+                console.error("Помилка завантаження даних:", error);
+                alert("Не вдалося завантажити board.json. Переконайся, що ти запускаєш сторінку через локальний сервер (localhost).");
+            }
+        }
+
+        // Відображення дошки (побудова DOM)
+        function renderBoard() {
+            boardContainer.innerHTML = ''; // Очищаємо дошку
+            
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 5; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    if (boardData[r][c] === 1) {
+                        cell.classList.add('on');
+                    }
+                    
+                    // Додаємо обробник події кліку
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    boardContainer.appendChild(cell);
+                }
+            }
+        }
+
+        // Обробка кліку
+        function handleCellClick(r, c) {
+            moves++;
+            movesText.textContent = `Moves: ${moves}`;
+            
+            // Перемикаємо клітинку та її сусідів (хрестиком)
+            toggleCell(r, c);       // Центр
+            toggleCell(r - 1, c);   // Верх
+            toggleCell(r + 1, c);   // Низ
+            toggleCell(r, c - 1);   // Ліво
+            toggleCell(r, c + 1);   // Право
+
+            renderBoard();
+            checkWin();
+        }
+
+        // Перемикання стану однієї клітинки (з перевіркою меж дошки)
+        function toggleCell(r, c) {
+            if (r >= 0 && r < 5 && c >= 0 && c < 5) {
+                boardData[r][c] = boardData[r][c] === 1 ? 0 : 1;
+            }
+        }
+
+        // Перевірка перемоги (якщо всі елементи масиву == 0)
+        function checkWin() {
+            const isWin = boardData.every(row => row.every(cell => cell === 0));
+            if (isWin) {
+                clearInterval(timerId);
+                setTimeout(() => alert(`Ви перемогли! Зроблено кроків: ${moves}`), 100);
+            }
+        }
+
+        function resetStats() {
+            moves = 0;
+            secondsElapsed = 0;
+            targetText.textContent = `Target: ${targetMoves}`;
+            movesText.textContent = `Moves: ${moves}`;
+            updateTimeDisplay();
+        }
+
+        function startTimer() {
+            clearInterval(timerId);
+            timerId = setInterval(() => {
+                secondsElapsed++;
+                updateTimeDisplay();
+            }, 1000);
+        }
+
+        function updateTimeDisplay() {
+            const minutes = Math.floor(secondsElapsed / 60);
+            const seconds = secondsElapsed % 60;
+            const formattedSeconds = seconds < 10 ? '0' + seconds : seconds;
+            timeText.textContent = `Time: ${minutes}:${formattedSeconds}`;
+        }
+
+        // Запуск гри
+        newGameBtn.addEventListener('click', loadGame);
+        
+        // Початкове завантаження при відкритті сторінки
+        window.addEventListener('DOMContentLoaded', loadGame);
+
+    </script>
+</body>
+</html>
